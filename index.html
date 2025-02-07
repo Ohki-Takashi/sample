@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ブロック崩し</title>
+    <style>
+        canvas {
+            display: block;
+            margin: auto;
+            background: #eee;
+        }
+        #startButton, #retryButton, #celebration {
+            display: block;
+            margin: 20px auto;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            text-align: center;
+        }
+        #retryButton, #celebration {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <button id="startButton">スタート</button>
+    <button id="retryButton">再チャレンジ</button>
+    <div id="celebration">🎉 おめでとう！全てのブロックを壊しました！ 🎉</div>
+    <canvas id="gameCanvas" width="600" height="400" style="display: none;"></canvas>
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const startButton = document.getElementById("startButton");
+        const retryButton = document.getElementById("retryButton");
+        const celebration = document.getElementById("celebration");
+        let gameRunning = false;
+
+        function playSound(frequency, duration) {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.type = "square";
+            oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            oscillator.start();
+            setTimeout(() => {
+                oscillator.stop();
+            }, duration);
+        }
+
+        function resetGame() {
+            paddle.x = canvas.width / 2 - paddle.width / 2;
+            ball.x = canvas.width / 2;
+            ball.y = canvas.height / 2;
+            ball.dx = 3;
+            ball.dy = -3;
+            blocks.forEach(block => block.destroyed = false);
+            celebration.style.display = "none";
+        }
+
+        const paddle = { width: 100, height: 10, x: canvas.width / 2 - 50, speed: 6, dx: 0 };
+        const ball = { x: canvas.width / 2, y: canvas.height / 2, radius: 8, speed: 3, dx: 3, dy: -3 };
+        const blocks = [];
+        const blockRowCount = 4, blockColumnCount = 8, blockWidth = 60, blockHeight = 20;
+        for (let r = 0; r < blockRowCount; r++) {
+            for (let c = 0; c < blockColumnCount; c++) {
+                blocks.push({ x: c * (blockWidth + 5) + 30, y: r * (blockHeight + 5) + 40, width: blockWidth, height: blockHeight, destroyed: false });
+            }
+        }
+
+        function checkWin() {
+            if (blocks.every(block => block.destroyed)) {
+                gameRunning = false;
+                celebration.style.display = "block";
+                retryButton.style.display = "block";
+            }
+        }
+
+        function update() {
+            paddle.x += paddle.dx;
+            if (paddle.x < 0) paddle.x = 0;
+            if (paddle.x + paddle.width > canvas.width) paddle.x = canvas.width - paddle.width;
+            
+            ball.x += ball.dx;
+            ball.y += ball.dy;
+            if (ball.x - ball.radius < 0 || ball.x + ball.radius > canvas.width) {
+                ball.dx *= -1;
+            }
+            if (ball.y - ball.radius < 0) {
+                ball.dy *= -1;
+            }
+            if (ball.y + ball.radius > canvas.height) {
+                gameRunning = false;
+                retryButton.style.display = "block";
+                return;
+            }
+            
+            if (ball.y + ball.radius > canvas.height - paddle.height - 10 && ball.x > paddle.x && ball.x < paddle.x + paddle.width) {
+                ball.dy *= -1;
+                playSound(440, 100);
+            }
+            
+            blocks.forEach((block) => {
+                if (!block.destroyed && ball.x > block.x && ball.x < block.x + block.width && ball.y - ball.radius < block.y + block.height && ball.y + ball.radius > block.y) {
+                    block.destroyed = true;
+                    ball.dy *= -1;
+                    playSound(880, 100);
+                    checkWin();
+                }
+            });
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "blue";
+            ctx.fillRect(paddle.x, canvas.height - paddle.height - 10, paddle.width, paddle.height);
+            ctx.fillStyle = "red";
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+            ctx.fill();
+            blocks.forEach((block) => {
+                if (!block.destroyed) {
+                    ctx.fillStyle = "red";
+                    ctx.fillRect(block.x, block.y, block.width, block.height);
+                }
+            });
+        }
+
+        function loop() {
+            if (gameRunning) {
+                update();
+                draw();
+                requestAnimationFrame(loop);
+            }
+        }
+
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowLeft") paddle.dx = -paddle.speed;
+            if (e.key === "ArrowRight") paddle.dx = paddle.speed;
+        });
+
+        document.addEventListener("keyup", () => {
+            paddle.dx = 0;
+        });
+
+        startButton.addEventListener("click", () => {
+            startButton.style.display = "none";
+            canvas.style.display = "block";
+            gameRunning = true;
+            loop();
+        });
+
+        retryButton.addEventListener("click", () => {
+            resetGame();
+            retryButton.style.display = "none";
+            gameRunning = true;
+            loop();
+        });
+    </script>
+</body>
+</html>
